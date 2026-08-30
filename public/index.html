@@ -357,7 +357,9 @@
         }
       });
 
-      function startEdit(rec) {
+      function startEdit(id) {
+        const rec = records.find((r) => r.id === id);
+        if (!rec) return;
         editingId = rec.id;
         document.getElementById('sys').value = rec.systolic;
         document.getElementById('dia').value = rec.diastolic;
