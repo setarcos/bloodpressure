@@ -1,0 +1,23 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "bloodpressure",
+	"main": "src/index.js",
+	"compatibility_date": "2025-11-28",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		// 前端静态页面目录，由 Cloudflare 直接托管
+		"directory": "./public"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "bloodpressure",
+			"database_id": "aa69a861-5545-4bb0-91e8-071b1cb65bed"
+		}
+	]
+}

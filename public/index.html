@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>血压记录</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+        margin: 0;
+        background: #f4f6f8;
+        color: #1f2937;
+      }
+      .hidden { display: none !important; }
+
+      /* ---------- 登录页 ---------- */
+      #login-view {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+        padding: 20px 24px;
+        margin: 0 auto 20px;
+      }
+      .login-card { width: 340px; text-align: center; }
+      .login-card h1 { margin: 8px 0 4px; font-size: 24px; }
+      .subtitle { color: #6b7280; margin: 0 0 20px; font-size: 14px; }
+      #login-form { display: flex; flex-direction: column; gap: 12px; }
+      #login-form input {
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 15px;
+        outline: none;
+      }
+      #login-form input:focus { border-color: #3b82f6; }
+      .error { color: #dc2626; font-size: 13px; margin: 0; }
+
+      /* ---------- 主界面 ---------- */
+      header {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 16px 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      header h1 { margin: 0; font-size: 22px; }
+      .user-bar { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #6b7280; }
+      .container { max-width: 900px; margin: 0 auto; padding: 0 16px 40px; }
+      .card h2 { margin: 0 0 14px; font-size: 16px; }
+
+      /* 添加记录表单 */
+      .grid-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        align-items: end;
+      }
+      .grid-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4b5563; }
+      .grid-form input, .grid-form select {
+        padding: 8px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        outline: none;
+      }
+      .grid-form input:focus { border-color: #3b82f6; }
+      .grid-form .full { grid-column: 1 / -1; }
+      .btn {
+        padding: 9px 16px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .btn:hover { background: #f3f4f6; }
+      .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .btn.primary:hover { background: #1d4ed8; }
+      .btn.danger { color: #dc2626; }
+      .btn.small { padding: 4px 10px; font-size: 13px; }
+      .btn.cancel { display: none; }
+
+      /* 过滤器 */
+      .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .filters label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #4b5563; }
+      .filters input { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+
+      .chart-container { position: relative; height: 320px; }
+
+      /* 记录表格 */
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+      th { color: #6b7280; font-weight: 500; font-size: 13px; }
+      tr:hover td { background: #f9fafb; }
+      .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+      .badge.low { background: #fef9c3; color: #a16207; }
+      .badge.normal { background: #dcfce7; color: #15803d; }
+      .badge.elevated { background: #fef3c7; color: #b45309; }
+      .badge.high1 { background: #ffedd5; color: #c2410c; }
+      .badge.high2 { background: #fee2e2; color: #b91c1c; }
+      .empty { text-align: center; color: #9ca3af; padding: 24px 0; }
+      .note-cell { color: #6b7280; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      @media (max-width: 640px) {
+        table { font-size: 12px; }
+        th, td { padding: 6px; }
+        .note-cell { max-width: 100px; }
+        header { flex-direction: column; gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 登录视图 -->
+    <div id="login-view" class="hidden">
+      <div class="card login-card">
+        <h1>🫀 血压记录</h1>
+        <p class="subtitle">请登录后查看个人记录</p>
+        <form id="login-form">
+          <input id="username" type="text" placeholder="用户名" autocomplete="username" required />
+          <input id="password" type="password" placeholder="密码" autocomplete="current-password" required />
+          <p id="login-error" class="error hidden"></p>
+          <button type="submit" class="btn primary">登 录</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 主视图 -->
+    <div id="app-view" class="hidden">
+      <header>
+        <h1>🫀 血压记录</h1>
+        <div class="user-bar">
+          <span id="user-name"></span>
+          <button id="logout-btn" class="btn small">退出登录</button>
+        </div>
+      </header>
+
+      <div class="container">
+        <section class="card">
+          <h2 id="form-title">添加记录</h2>
+          <form id="add-form" class="grid-form">
+            <label>收缩压 (mmHg)
+              <input type="number" id="sys" min="40" max="300" placeholder="如 120" required />
+            </label>
+            <label>舒张压 (mmHg)
+              <input type="number" id="dia" min="20" max="200" placeholder="如 80" required />
+            </label>
+            <label>心率 (次/分)
+              <input type="number" id="hr" min="20" max="250" placeholder="可选" />
+            </label>
+            <label>测量时间
+              <input type="datetime-local" id="measured-at" />
+            </label>
+            <label class="full">备注
+              <input type="text" id="note" maxlength="200" placeholder="可选，如「晨起」「服药后」" />
+            </label>
+            <button type="submit" class="btn primary" id="submit-btn">保存</button>
+            <button type="button" class="btn cancel" id="cancel-edit-btn">取消编辑</button>
+          </form>
+        </section>
+
+        <section class="card">
+          <h2>趋势图</h2>
+          <div class="filters">
+            <label>开始 <input type="date" id="start-date" /></label>
+            <label>结束 <input type="date" id="end-date" /></label>
+            <button class="btn" id="query-btn">查询</button>
+            <button class="btn" id="reset-btn">最近30天</button>
+            <button class="btn" id="export-btn">导出 CSV</button>
+          </div>
+          <div class="chart-container"><canvas id="chart"></canvas></div>
+        </section>
+
+        <section class="card">
+          <h2>记录列表 <span id="record-count" style="color:#9ca3af;font-size:13px;"></span></h2>
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>血压 (收缩/舒张)</th>
+                <th>分级</th>
+                <th>心率</th>
+                <th>备注</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="records-body"></tbody>
+          </table>
+          <div id="empty-tip" class="empty hidden">该时间段暂无记录</div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      let chartInstance = null;
+      let records = [];
+      let editingId = null;
+
+      /* ---------- 工具 ---------- */
+
+      async function api(path, options = {}) {
+        const res = await fetch(path, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options,
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = new Error(body.error || '请求失败');
+          err.status = res.status;
+          throw err;
+        }
+        return body;
+      }
+
+      // 数据库存的 "YYYY-MM-DD HH:MM:SS" 按 UTC 解析
+      function parseDbTime(s) {
+        return new Date(s.replace(' ', 'T') + 'Z');
+      }
+
+      function fmtDateTime(d) {
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+
+      function toInputValue(d) {
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+
+      // 中国高血压防治指南分级
+      function bpCategory(sys, dia) {
+        if (sys < 90 || dia < 60) return { label: '低血压', cls: 'low' };
+        if (sys < 120 && dia < 80) return { label: '正常', cls: 'normal' };
+        if (sys < 140 && dia < 90) return { label: '正常高值', cls: 'elevated' };
+        if (sys < 160 && dia < 100) return { label: '1级高血压', cls: 'high1' };
+        return { label: '≥2级高血压', cls: 'high2' };
+      }
+
+      /* ---------- 视图切换 ---------- */
+
+      function showLogin() {
+        document.getElementById('login-view').classList.remove('hidden');
+        document.getElementById('app-view').classList.add('hidden');
+      }
+
+      function showApp(username) {
+        document.getElementById('login-view').classList.add('hidden');
+        document.getElementById('app-view').classList.remove('hidden');
+        document.getElementById('user-name').textContent = username;
+        resetFilters();
+        loadRecords();
+      }
+
+      /* ---------- 登录 / 登出 ---------- */
+
+      async function init() {
+        try {
+          const body = await api('/api/me');
+          showApp(body.data.display_name || body.data.username);
+        } catch {
+          showLogin();
+        }
+      }
+
+      document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('login-error');
+        errEl.classList.add('hidden');
+        try {
+          await api('/api/login', {
+            method: 'POST',
+            body: JSON.stringify({
+              username: document.getElementById('username').value,
+              password: document.getElementById('password').value,
+            }),
+          });
+          document.getElementById('password').value = '';
+          await init();
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      });
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        try { await api('/api/logout', { method: 'POST' }); } catch {}
+        showLogin();
+      });
+
+      /* ---------- 记录 CRUD ---------- */
+
+      async function loadRecords() {
+        const start = document.getElementById('start-date').value;
+        const end = document.getElementById('end-date').value;
+        const params = new URLSearchParams();
+        if (start && end) {
+          // 前端按本地时区计算范围，传给后端 UTC ISO
+          params.append('start_time', new Date(start + 'T00:00:00').toISOString());
+          const endExclusive = new Date(end + 'T00:00:00');
+          endExclusive.setDate(endExclusive.getDate() + 1);
+          params.append('end_time', endExclusive.toISOString());
+        }
+        try {
+          const body = await api('/api/records?' + params.toString());
+          records = body.data;
+          renderChart();
+          renderTable();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+
+      function resetFilters() {
+        const p = (n) => String(n).padStart(2, '0');
+        const fmt = (d) => `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+        const today = new Date();
+        const start = new Date(today);
+        start.setDate(start.getDate() - 29);
+        document.getElementById('start-date').value = fmt(start);
+        document.getElementById('end-date').value = fmt(today);
+      }
+
+      function currentMeasuredAt() {
+        const el = document.getElementById('measured-at');
+        if (el.value) return new Date(el.value);
+        return new Date();
+      }
+
+      document.getElementById('add-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+          systolic: document.getElementById('sys').value,
+          diastolic: document.getElementById('dia').value,
+          heart_rate: document.getElementById('hr').value || null,
+          measured_at: currentMeasuredAt().toISOString(),
+          note: document.getElementById('note').value,
+        };
+        try {
+          if (editingId === null) {
+            await api('/api/records', { method: 'POST', body: JSON.stringify(payload) });
+          } else {
+            await api('/api/records/' + editingId, { method: 'PUT', body: JSON.stringify(payload) });
+            cancelEdit();
+          }
+          document.getElementById('add-form').reset();
+          loadRecords();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+
+      function startEdit(rec) {
+        editingId = rec.id;
+        document.getElementById('sys').value = rec.systolic;
+        document.getElementById('dia').value = rec.diastolic;
+        document.getElementById('hr').value = rec.heart_rate || '';
+        document.getElementById('measured-at').value = toInputValue(parseDbTime(rec.measured_at));
+        document.getElementById('note').value = rec.note || '';
+        document.getElementById('form-title').textContent = '编辑记录 #' + rec.id;
+        document.getElementById('submit-btn').textContent = '保存修改';
+        document.getElementById('cancel-edit-btn').style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function cancelEdit() {
+        editingId = null;
+        document.getElementById('add-form').reset();
+        document.getElementById('form-title').textContent = '添加记录';
+        document.getElementById('submit-btn').textContent = '保存';
+        document.getElementById('cancel-edit-btn').style.display = 'none';
+      }
+
+      document.getElementById('cancel-edit-btn').addEventListener('click', cancelEdit);
+
+      async function deleteRecord(id) {
+        if (!confirm('确定删除这条记录吗？')) return;
+        try {
+          await api('/api/records/' + id, { method: 'DELETE' });
+          if (editingId === id) cancelEdit();
+          loadRecords();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+
+      /* ---------- 渲染 ---------- */
+
+      function renderTable() {
+        const tbody = document.getElementById('records-body');
+        const emptyTip = document.getElementById('empty-tip');
+        tbody.innerHTML = '';
+        document.getElementById('record-count').textContent = records.length ? `(${records.length} 条)` : '';
+        emptyTip.classList.toggle('hidden', records.length > 0);
+
+        records.forEach((rec) => {
+          const cat = bpCategory(rec.systolic, rec.diastolic);
+          const tr = document.createElement('tr');
+          const time = fmtDateTime(parseDbTime(rec.measured_at));
+          tr.innerHTML = `
+            <td>${time}</td>
+            <td><strong>${rec.systolic}</strong> / ${rec.diastolic} mmHg</td>
+            <td><span class="badge ${cat.cls}">${cat.label}</span></td>
+            <td>${rec.heart_rate ? rec.heart_rate + ' 次/分' : '—'}</td>
+            <td class="note-cell" title="${(rec.note || '').replace(/"/g, '&quot;')}">${rec.note || ''}</td>
+            <td>
+              <button class="btn small" onclick="startEdit(${rec.id})">编辑</button>
+              <button class="btn small danger" onclick="deleteRecord(${rec.id})">删除</button>
+            </td>`;
+          tbody.appendChild(tr);
+        });
+      }
+
+      function renderChart() {
+        const ctx = document.getElementById('chart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        // 后端按时间倒序返回，图表需要升序
+        const data = [...records].reverse();
+        const labels = data.map((r) => fmtDateTime(parseDbTime(r.measured_at)));
+
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: '收缩压',
+                data: data.map((r) => r.systolic),
+                borderColor: '#ef4444',
+                backgroundColor: '#ef4444',
+                tension: 0.15,
+                yAxisID: 'y',
+              },
+              {
+                label: '舒张压',
+                data: data.map((r) => r.diastolic),
+                borderColor: '#3b82f6',
+                backgroundColor: '#3b82f6',
+                tension: 0.15,
+                yAxisID: 'y',
+              },
+              {
+                label: '心率',
+                data: data.map((r) => r.heart_rate),
+                borderColor: '#10b981',
+                backgroundColor: '#10b981',
+                borderDash: [6, 4],
+                pointStyle: 'rect',
+                tension: 0.15,
+                yAxisID: 'y1',
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+              x: {
+                ticks: { maxTicksLimit: 10, maxRotation: 45, font: { size: 11 } },
+              },
+              y: {
+                type: 'linear',
+                position: 'left',
+                min: 40,
+                title: { display: true, text: '血压 (mmHg)' },
+              },
+              y1: {
+                type: 'linear',
+                position: 'right',
+                min: 40,
+                title: { display: true, text: '心率 (次/分)' },
+                grid: { drawOnChartArea: false },
+              },
+            },
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  label: (item) =>
+                    item.dataset.label + ': ' + item.formattedValue + (item.dataset.yAxisID === 'y' ? ' mmHg' : ' 次/分'),
+                },
+              },
+            },
+          },
+        });
+      }
+
+      /* ---------- 导出 CSV ---------- */
+
+      document.getElementById('export-btn').addEventListener('click', () => {
+        if (records.length === 0) {
+          alert('当前没有可导出的记录');
+          return;
+        }
+        const esc = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+        const lines = ['时间,收缩压(mmHg),舒张压(mmHg),心率(次/分),备注'];
+        for (const r of records) {
+          lines.push(
+            [fmtDateTime(parseDbTime(r.measured_at)), r.systolic, r.diastolic, r.heart_rate ?? '', r.note ?? '']
+              .map(esc)
+              .join(',')
+          );
+        }
+        const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '血压记录_' + new Date().toISOString().split('T')[0] + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+
+      /* ---------- 事件绑定 ---------- */
+
+      document.getElementById('query-btn').addEventListener('click', loadRecords);
+      document.getElementById('reset-btn').addEventListener('click', () => { resetFilters(); loadRecords(); });
+
+      init();
+    </script>
+  </body>
+</html>
