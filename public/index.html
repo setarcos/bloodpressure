@@ -206,8 +206,14 @@
 
       /* ---------- 工具 ---------- */
 
+      // 兼容两种部署形态：custom domain（根路径）与 /bloodpressure 子路径 route
+      function apiBase() {
+        const m = location.pathname.match(/^(\/bloodpressure)(?:\/|$)/);
+        return m ? m[1] : '';
+      }
+
       async function api(path, options = {}) {
-        const res = await fetch(path, {
+        const res = await fetch(apiBase() + path, {
           headers: { 'Content-Type': 'application/json' },
           ...options,
         });

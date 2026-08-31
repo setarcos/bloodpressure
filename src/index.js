@@ -13,12 +13,30 @@ const SESSION_TTL_SECONDS = 30 * 24 * 3600; // 30 天
 
 const encoder = new TextEncoder();
 
+// 子路径部署前缀（route: example.com/bloodpressure*）。
+// 同时兼容 custom domain（bloodpressure.example.com）的根路径形态。
+const BASE_PATH = '/bloodpressure';
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 所有 API 都在 /api/* 下；其余路径由静态资源（public/）处理
-    if (url.pathname.startsWith('/api/')) {
+    // 子路径形态：example.com/bloodpressure/api/... 剥掉前缀后与根路径等价
+    let pathname = url.pathname;
+    if (pathname === BASE_PATH) {
+      pathname = '/';
+    } else if (pathname.startsWith(BASE_PATH + '/')) {
+      pathname = pathname.slice(BASE_PATH.length);
+    }
+    url.pathname = pathname;
+
+    // 子路径形态下首页不匹配任何静态资源，由 Worker 从 assets 取根路径 index.html
+    if (pathname === '/') {
+      return env.ASSETS.fetch(new URL('/', request.url));
+    }
+
+    // 所有 API 都在 /api/* 下；其余路径 404
+    if (pathname.startsWith('/api/')) {
       return handleApi(request, env, url);
     }
 

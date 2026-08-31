@@ -277,4 +277,42 @@ describe('Blood Pressure Worker', () => {
       expect(check.status).toBe(401);
     });
   });
+
+  describe('子路径部署形态（route: example.com/bloodpressure*）', () => {
+    it('/bloodpressure 返回首页 HTML', async () => {
+      const response = await fetchWorker(new Request(`${BASE}/bloodpressure`));
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type') || '').toContain('text/html');
+      expect(await response.text()).toContain('血压记录');
+    });
+
+    it('/bloodpressure/api/login 可正常登录', async () => {
+      const response = await fetchWorker(
+        new Request(`${BASE}/bloodpressure/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'alice', password: 'secret123' }),
+        })
+      );
+      expect(response.status).toBe(200);
+      expect(getCookie(response, 'session')).toBeTruthy();
+    });
+
+    it('/bloodpressure/api/records 未登录返回 401', async () => {
+      const response = await fetchWorker(new Request(`${BASE}/bloodpressure/api/records`));
+      expect(response.status).toBe(401);
+    });
+
+    it('/bloodpressure/api/records 登录后可增删改查', async () => {
+      const { token } = await login('alice', 'secret123');
+      const response = await fetchWorker(
+        authedRequest('/bloodpressure/api/records', {
+          method: 'POST',
+          token,
+          body: { systolic: 118, diastolic: 76, heart_rate: 65, measured_at: isoOffset(1) },
+        })
+      );
+      expect(response.status).toBe(200);
+    });
+  });
 });

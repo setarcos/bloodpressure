@@ -46,6 +46,19 @@ npm test             # 运行 vitest 测试
 本地开发时同样需要先执行建表和预置用户（把上面的 `--remote` 换成 `--local`），
 本地数据库位于 `.wrangler/state/`，删除该目录可重置本地数据。
 
+## 部署形态（支持两种 URL 同时访问）
+
+代码同时兼容以下两种部署形态，无需分别打包：
+
+| 形态 | 配置位置 | 访问 URL | 说明 |
+| --- | --- | --- | --- |
+| Custom Domain | Dashboard → Worker → Domains | `bloodpressure.example.com` | 首页 `/` 由 Cloudflare Assets 直接托管，`/api/*` 进 Worker |
+| 子路径 Route | Dashboard → Worker → Routes | `example.com/bloodpressure*` | 首页由 Worker 剥掉 `/bloodpressure` 前缀后经 `env.ASSETS` 回退取回，API 同理 |
+
+> 注意：子路径 Route 的 pattern **必须带 `*`**（如 `example.com/bloodpressure*`），
+> 否则 `example.com/bloodpressure/api/*` 不会路由到本 Worker。
+> 前端 `public/index.html` 的 `apiBase()` 会自动根据当前路径加上 `/bloodpressure` 前缀，无需手工改。
+
 > 注：`package.json` 中通过 `overrides` 将 esbuild 固定为 0.25.12，
 > 因为 0.28.x 的二进制在部分 Linux 环境下会段错误；其他环境如遇问题可移除此约束。
 

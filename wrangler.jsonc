@@ -8,7 +8,12 @@
 	],
 	"assets": {
 		// 前端静态页面目录，由 Cloudflare 直接托管
-		"directory": "./public"
+		"directory": "./public",
+		// 子路径形态（route: example.com/bloodpressure*）下首页不匹配任何 asset，
+		// 由 Worker 通过该 binding 回退取根路径 index.html
+		"binding": "ASSETS",
+		// 不匹配 asset 的请求交给 Worker 的 fetch handler 处理（默认行为，显式声明）
+		"not_found_handling": "none"
 	},
 	"observability": {
 		"enabled": true
