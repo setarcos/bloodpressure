@@ -315,4 +315,85 @@ describe('Blood Pressure Worker', () => {
       expect(response.status).toBe(200);
     });
   });
+
+  describe('修改密码', () => {
+    it('未登录访问返回 401', async () => {
+      const response = await fetchWorker(
+        new Request(`${BASE}/api/change-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password: 'x', new_password: 'yyyyyyyy' }),
+        })
+      );
+      expect(response.status).toBe(401);
+    });
+
+    it('当前密码错误返回 401', async () => {
+      const { token } = await login('alice', 'secret123');
+      const response = await fetchWorker(
+        authedRequest('/api/change-password', {
+          method: 'POST',
+          token,
+          body: { old_password: 'wrong-password', new_password: 'newpassword1' },
+        })
+      );
+      expect(response.status).toBe(401);
+      const body = await response.json();
+      expect(body.error).toBe('当前密码错误');
+    });
+
+    it('新密码太短返回 400', async () => {
+      const { token } = await login('alice', 'secret123');
+      const response = await fetchWorker(
+        authedRequest('/api/change-password', {
+          method: 'POST',
+          token,
+          body: { old_password: 'secret123', new_password: 'short' },
+        })
+      );
+      expect(response.status).toBe(400);
+    });
+
+    it('新密码与当前密码相同返回 400', async () => {
+      const { token } = await login('alice', 'secret123');
+      const response = await fetchWorker(
+        authedRequest('/api/change-password', {
+          method: 'POST',
+          token,
+          body: { old_password: 'secret123', new_password: 'secret123' },
+        })
+      );
+      expect(response.status).toBe(400);
+    });
+
+    it('修改成功后：旧密码失效、新密码可登录、其他会话被吊销、当前会话保持', async () => {
+      const tokenA = (await login('alice', 'secret123')).token; // 会话 1
+      const tokenB = (await login('alice', 'secret123')).token; // 会话 2（执行修改）
+
+      const response = await fetchWorker(
+        authedRequest('/api/change-password', {
+          method: 'POST',
+          token: tokenB,
+          body: { old_password: 'secret123', new_password: 'newpassword1' },
+        })
+      );
+      expect(response.status).toBe(200);
+
+      // 当前会话保持有效
+      const me = await fetchWorker(authedRequest('/api/me', { token: tokenB }));
+      expect(me.status).toBe(200);
+
+      // 其他会话被吊销
+      const other = await fetchWorker(authedRequest('/api/me', { token: tokenA }));
+      expect(other.status).toBe(401);
+
+      // 旧密码无法登录
+      const oldLogin = await login('alice', 'secret123');
+      expect(oldLogin.response.status).toBe(401);
+
+      // 新密码可登录
+      const newLogin = await login('alice', 'newpassword1');
+      expect(newLogin.response.status).toBe(200);
+    });
+  });
 });

@@ -9,11 +9,30 @@
 ## 功能
 
 *   登录 / 登出，会话有效期 30 天
+*   **修改密码**：登录后在页面右上角「修改密码」即可自助修改（需验证当前密码，新密码至少 8 个字符；
+    修改成功后除当前会话外的其他会话自动吊销）
 *   添加 / 编辑 / 删除血压记录（收缩压、舒张压、心率、测量时间、备注）
 *   趋势图：收缩压、舒张压、心率三条曲线（Chart.js），前端本地时区换算
 *   血压自动分级（低血压 / 正常 / 正常高值 / 1级高血压 / ≥2级高血压，参考中国高血压防治指南）
 *   按日期范围查询，默认最近 30 天
 *   导出 CSV（Excel 可直接打开）
+
+## 重置 / 修改密码
+
+### 页面自助修改
+
+登录后在页面右上角点击「修改密码」，验证当前密码后设置新密码（至少 8 个字符）。
+修改成功后除当前会话外的其他会话会被自动吊销，用户需在新设备上重新登录。
+
+### 命令行重置（用户忘记密码时由管理员执行）
+
+```bash
+# 生成 UPDATE SQL（同时吊销该用户所有现有会话）
+node scripts/reset-password.mjs alice 'new-pass-123' > reset-password.sql
+# 查看内容确认无误后执行（本地 / 远程任选其一）:
+npx wrangler d1 execute bloodpressure --local  --file=reset-password.sql
+npx wrangler d1 execute bloodpressure --remote --file=reset-password.sql
+```
 
 ## 部署
 
@@ -67,6 +86,7 @@ npm test             # 运行 vitest 测试
 | 操作 | 命令 |
 | --- | --- |
 | 生成用户插入 SQL | `node scripts/hash-password.mjs <用户名> <密码> [显示名]` |
+| 重置用户密码（输出 UPDATE + 吊销会话 SQL） | `node scripts/reset-password.mjs <用户名> <新密码>` |
 | 远程建表 | `npx wrangler d1 execute bloodpressure --remote --file=bloodpressure.sql` |
 | 远程执行任意 SQL | `npx wrangler d1 execute bloodpressure --remote --command "SELECT * FROM users;"` |
 
@@ -75,5 +95,6 @@ npm test             # 运行 vitest 测试
 *   密码使用 PBKDF2-SHA256（10 万次迭代，每用户随机 16 字节盐），哈希格式
     `pbkdf2$迭代次数$盐(hex)$哈希(hex)`，校验时使用恒定时间比较。
 *   会话 token 为 32 字节随机数，存于 HttpOnly Cookie，服务端存 D1 并可随时吊销（登出即删除）。
+*   修改密码 / 管理员重置密码后会吊销该用户除当前会话外的所有会话，防止旧设备继续使用。
 *   未提供登录限流与 HTTPS 强制（Cloudflare 默认支持 HTTPS）；如需更严格防护可自行扩展。
 *   本项目仅适合小规模自用场景，请勿存放敏感数据或用于生产级健康系统。

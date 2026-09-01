@@ -79,6 +79,9 @@ async function handleApi(request, env, url) {
     case /^\/api\/records\/\d+$/.test(url.pathname) && request.method === 'DELETE':
       return deleteRecord(request, env, url, user);
 
+    case url.pathname === '/api/change-password' && request.method === 'POST':
+      return changePassword(request, env, user);
+
     default:
       return json({ success: false, error: 'Not Found' }, 404);
   }
@@ -151,6 +154,52 @@ async function getSessionUser(request, env) {
   )
     .bind(token)
     .first();
+}
+
+/* ------------------------------------------------------------------ */
+/* 修改密码                                                           */
+/* ------------------------------------------------------------------ */
+
+/** 修改自己的密码：需验证当前密码；成功后吊销该用户除当前会话外的所有会话 */
+async function changePassword(request, env, user) {
+  const body = await request.json().catch(() => null);
+  if (!body) return json({ success: false, error: '无效的 JSON' }, 400);
+
+  const oldPassword = typeof body.old_password === 'string' ? body.old_password : '';
+  const newPassword = typeof body.new_password === 'string' ? body.new_password : '';
+
+  if (!oldPassword) {
+    return json({ success: false, error: '请输入当前密码' }, 400);
+  }
+  if (!newPassword) {
+    return json({ success: false, error: '请输入新密码' }, 400);
+  }
+  if (newPassword.length < 8) {
+    return json({ success: false, error: '新密码至少 8 个字符' }, 400);
+  }
+  if (newPassword === oldPassword) {
+    return json({ success: false, error: '新密码不能与当前密码相同' }, 400);
+  }
+
+  const row = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?')
+    .bind(user.id)
+    .first();
+  if (!row || !(await verifyPassword(oldPassword, row.password_hash))) {
+    return json({ success: false, error: '当前密码错误' }, 401);
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(newHash, user.id)
+    .run();
+
+  // 吊销该用户除当前会话外的所有会话
+  const cookie = parseCookies(request.headers.get('Cookie') || '');
+  await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?')
+    .bind(user.id, cookie.session || '')
+    .run();
+
+  return json({ success: true });
 }
 
 /* ------------------------------------------------------------------ */
@@ -277,6 +326,14 @@ function validateRecord(body) {
 }
 
 /* ---------- 密码哈希 (PBKDF2-SHA256) ---------- */
+
+/** 生成带随机盐的新密码哈希（格式与 scripts/ 下 CLI 一致） */
+async function hashPassword(password) {
+  const salt = new Uint8Array(16);
+  crypto.getRandomValues(salt);
+  const hash = await pbkdf2Hash(password, bytesToHex(salt), PBKDF2_ITERATIONS);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${bytesToHex(salt)}$${hash}`;
+}
 
 export async function pbkdf2Hash(password, saltHex, iterations) {
   const keyMaterial = await crypto.subtle.importKey(

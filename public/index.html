@@ -116,6 +116,29 @@
         .note-cell { max-width: 100px; }
         header { flex-direction: column; gap: 8px; }
       }
+
+      /* ---------- 修改密码弹窗 ---------- */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+      }
+      .modal-card { width: 360px; }
+      .modal-card form { display: flex; flex-direction: column; gap: 12px; }
+      .modal-card label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #4b5563; }
+      .modal-card input {
+        padding: 8px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        outline: none;
+      }
+      .modal-card input:focus { border-color: #3b82f6; }
+      .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
     </style>
   </head>
   <body>
@@ -139,6 +162,7 @@
         <h1>🫀 血压记录</h1>
         <div class="user-bar">
           <span id="user-name"></span>
+          <button id="change-password-btn" class="btn small">修改密码</button>
           <button id="logout-btn" class="btn small">退出登录</button>
         </div>
       </header>
@@ -196,6 +220,31 @@
           </table>
           <div id="empty-tip" class="empty hidden">该时间段暂无记录</div>
         </section>
+      </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div id="change-password-modal" class="hidden">
+      <div class="modal-backdrop">
+        <div class="card modal-card">
+          <h2>修改密码</h2>
+          <form id="change-password-form">
+            <label>当前密码
+              <input type="password" id="cp-old" autocomplete="current-password" required />
+            </label>
+            <label>新密码（至少 8 个字符）
+              <input type="password" id="cp-new" autocomplete="new-password" minlength="8" required />
+            </label>
+            <label>确认新密码
+              <input type="password" id="cp-confirm" autocomplete="new-password" minlength="8" required />
+            </label>
+            <p id="cp-error" class="error hidden"></p>
+            <div class="modal-actions">
+              <button type="button" class="btn" id="cp-cancel-btn">取消</button>
+              <button type="submit" class="btn primary">确认修改</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -501,6 +550,55 @@
           },
         });
       }
+
+      /* ---------- 修改密码 ---------- */
+
+      function openChangePassword() {
+        document.getElementById('change-password-modal').classList.remove('hidden');
+        document.getElementById('cp-old').focus();
+      }
+
+      function closeChangePassword() {
+        document.getElementById('change-password-modal').classList.add('hidden');
+        document.getElementById('change-password-form').reset();
+        document.getElementById('cp-error').classList.add('hidden');
+      }
+
+      document.getElementById('change-password-btn').addEventListener('click', openChangePassword);
+      document.getElementById('cp-cancel-btn').addEventListener('click', closeChangePassword);
+
+      // 点击遮罩层关闭
+      document.getElementById('change-password-modal').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-backdrop')) closeChangePassword();
+      });
+
+      document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('cp-error');
+        errEl.classList.add('hidden');
+
+        const oldPwd = document.getElementById('cp-old').value;
+        const newPwd = document.getElementById('cp-new').value;
+        const confirmPwd = document.getElementById('cp-confirm').value;
+
+        if (newPwd !== confirmPwd) {
+          errEl.textContent = '两次输入的新密码不一致';
+          errEl.classList.remove('hidden');
+          return;
+        }
+
+        try {
+          await api('/api/change-password', {
+            method: 'POST',
+            body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }),
+          });
+          closeChangePassword();
+          alert('密码修改成功');
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      });
 
       /* ---------- 导出 CSV ---------- */
 
